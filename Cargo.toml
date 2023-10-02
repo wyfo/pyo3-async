@@ -1,0 +1,10 @@
+[package]
+name = "pyo3-async"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = "0.3"
+pyo3 = "0.19"
+
+[dev-dependencies]
