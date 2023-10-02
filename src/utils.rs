@@ -74,7 +74,7 @@ macro_rules! generate {
             /// poll.
             pub fn new(
                 future: ::std::pin::Pin<Box<dyn $crate::PyFuture>>,
-                throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
+                throw: Option<$crate::ThrowCallback>,
             ) -> Self {
                 Self($crate::coroutine::Coroutine::new(future, throw))
             }
@@ -138,7 +138,7 @@ macro_rules! generate {
             /// poll.
             pub fn new(
                 stream: ::std::pin::Pin<Box<dyn $crate::PyStream>>,
-                throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
+                throw: Option<$crate::ThrowCallback>,
             ) -> Self {
                 Self($crate::async_generator::AsyncGenerator::new(stream, throw))
             }

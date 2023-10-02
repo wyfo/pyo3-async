@@ -7,7 +7,7 @@ use std::{
 use futures::task::ArcWake;
 use pyo3::{exceptions::PyRuntimeError, iter::IterNextOutput, prelude::*};
 
-use crate::PyFuture;
+use crate::{PyFuture, ThrowCallback};
 
 pub(crate) trait CoroutineWaker: Sized {
     fn new(py: Python) -> PyResult<Self>;
@@ -23,15 +23,12 @@ pub(crate) trait CoroutineWaker: Sized {
 
 pub(crate) struct Coroutine<W> {
     future: Option<Pin<Box<dyn PyFuture>>>,
-    throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
+    throw: Option<ThrowCallback>,
     waker: Option<Arc<W>>,
 }
 
 impl<W> Coroutine<W> {
-    pub(crate) fn new(
-        future: Pin<Box<dyn PyFuture>>,
-        throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
-    ) -> Self {
+    pub(crate) fn new(future: Pin<Box<dyn PyFuture>>, throw: Option<ThrowCallback>) -> Self {
         Self {
             future: Some(future),
             throw,

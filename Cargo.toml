@@ -3,14 +3,6 @@ name = "pyo3-async"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
-name = "pyo3_async"
-crate-type = ["cdylib"]
-
 [dependencies]
 futures = "0.3"
 pyo3 = "0.19"
-tokio = { version = "1", features = ["rt-multi-thread", "time"] }
-
-[dev-dependencies]

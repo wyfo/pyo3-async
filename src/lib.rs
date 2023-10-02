@@ -146,59 +146,6 @@ impl Drop for FutureWrapper {
     }
 }
 
-fn tokio() -> &'static tokio::runtime::Runtime {
-    use std::sync::OnceLock;
-    static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-    RT.get_or_init(|| tokio::runtime::Runtime::new().unwrap())
-}
-
-#[pyfunction]
-fn sleep_asyncio() -> asyncio::Coroutine {
-    let sleep = async move { tokio::time::sleep(std::time::Duration::from_secs(1)).await };
-    let future = tokio().spawn(sleep).map(|_| PyResult::Ok(()));
-    asyncio::Coroutine::from_future(future)
-}
-
-#[pyfunction]
-fn sleep_trio() -> trio::Coroutine {
-    let sleep = async move { tokio::time::sleep(std::time::Duration::from_secs(1)).await };
-    let future = tokio().spawn(sleep).map(|_| PyResult::Ok(()));
-    trio::Coroutine::from_future(future)
-}
-
-#[pyfunction]
-fn sleep_sniffio() -> sniffio::Coroutine {
-    let sleep = async move { tokio::time::sleep(std::time::Duration::from_secs(1)).await };
-    let future = tokio().spawn(sleep).map(|_| PyResult::Ok(()));
-    sniffio::Coroutine::from_future(future)
-}
-
-#[pyfunction]
-fn spawn_future(fut: PyObject) {
-    tokio().spawn(async move {
-        FutureWrapper::new(fut, None).await.unwrap();
-        println!("task done")
-    });
-}
-
-#[pyfunction]
-fn async_gen() -> asyncio::AsyncGenerator {
-    asyncio::AsyncGenerator::from_stream(futures::stream::unfold(0, |i| async move {
-        let sleep = async move { tokio::time::sleep(std::time::Duration::from_secs(1)).await };
-        tokio().spawn(sleep).await.ok();
-        Some((PyResult::Ok(i), i + 1))
-    }))
-}
-
-/// A Python module implemented in Rust. The name of this function must match
-/// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
-/// import the module.
-#[pymodule]
-fn pyo3_async(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(sleep_asyncio, m)?)?;
-    m.add_function(wrap_pyfunction!(sleep_trio, m)?)?;
-    m.add_function(wrap_pyfunction!(sleep_sniffio, m)?)?;
-    m.add_function(wrap_pyfunction!(spawn_future, m)?)?;
-    m.add_function(wrap_pyfunction!(async_gen, m)?)?;
-    Ok(())
-}
+/// Callback for Python coroutine `throw` method (see [`asyncio::Coroutine::new`]) and
+/// async generator `athrow` method (see [`asyncio::AsyncGenerator::new`]).
+pub type ThrowCallback = Box<dyn FnMut(Python, Option<PyErr>) + Send>;

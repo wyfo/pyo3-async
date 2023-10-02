@@ -7,7 +7,7 @@ use std::{
 
 use pyo3::{exceptions::PyStopAsyncIteration, prelude::*};
 
-use crate::{PyFuture, PyStream};
+use crate::{PyFuture, PyStream, ThrowCallback};
 
 #[pyclass]
 struct StreamNext(Option<Pin<Box<dyn PyStream>>>);
@@ -66,15 +66,12 @@ pub(crate) trait CoroutineFactory {
 
 pub(crate) struct AsyncGenerator<C> {
     stream_or_next: StreamOrNext,
-    throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
+    throw: Option<ThrowCallback>,
     _phantom: PhantomData<C>,
 }
 
 impl<C> AsyncGenerator<C> {
-    pub(crate) fn new(
-        stream: Pin<Box<dyn PyStream>>,
-        throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
-    ) -> Self {
+    pub(crate) fn new(stream: Pin<Box<dyn PyStream>>, throw: Option<ThrowCallback>) -> Self {
         Self {
             stream_or_next: StreamOrNext::Stream(stream),
             throw,
