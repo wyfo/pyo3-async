@@ -1,3 +1,4 @@
+//! `trio` compatible coroutine and async generator implementation.
 use pyo3::prelude::*;
 
 use crate::{coroutine, utils};

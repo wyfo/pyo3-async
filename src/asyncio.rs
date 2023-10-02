@@ -1,3 +1,4 @@
+//! `asyncio` compatible coroutine and async generator implementation.
 use std::{
     future::Future,
     pin::Pin,
@@ -61,12 +62,16 @@ impl coroutine::CoroutineWaker for Waker {
 
 utils::generate!(Waker);
 
+/// [`Future`] wrapper for a Python awaitable (in `asyncio` context).
+///
+/// The future should be polled in the thread where the event loop is running.
 pub struct AwaitableWrapper {
     future_iter: PyObject,
     future: Option<PyObject>,
 }
 
 impl AwaitableWrapper {
+    /// Wrap a Python awaitable.
     pub fn new(awaitable: &PyAny) -> PyResult<Self> {
         Ok(Self {
             future_iter: awaitable.call_method0("__await__")?.extract()?,
@@ -74,7 +79,8 @@ impl AwaitableWrapper {
         })
     }
 
-    pub fn as_ref<'a>(
+    /// GIL-bound [`Future`] reference.
+    pub fn as_mut<'a>(
         &'a mut self,
         py: Python<'a>,
     ) -> impl Future<Output = PyResult<PyObject>> + Unpin + 'a {
@@ -108,6 +114,6 @@ impl Future for AwaitableWrapper {
     type Output = PyResult<PyObject>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        Python::with_gil(|gil| Pin::into_inner(self).as_ref(gil).poll_unpin(cx))
+        Python::with_gil(|gil| Pin::into_inner(self).as_mut(gil).poll_unpin(cx))
     }
 }

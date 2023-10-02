@@ -59,17 +59,27 @@ macro_rules! generate {
             }
         }
 
+        /// Python coroutine wrapping a [`PyFuture`](crate::PyFuture).
         #[pyclass]
         pub struct Coroutine($crate::coroutine::Coroutine<$waker>);
 
         impl Coroutine {
+            /// Wrap a boxed future in to a Python coroutine.
+            ///
+            /// If `throw` callback is provided:
+            /// - coroutine `throw` method will call it with the passed exception before polling;
+            /// - coroutine `close` method will call it with `None` before polling and dropping
+            ///   the future.
+            /// If `throw` callback is not provided, the future will dropped without additional
+            /// poll.
             pub fn new(
                 future: ::std::pin::Pin<Box<dyn $crate::PyFuture>>,
-                throw: Option<Box<dyn FnMut(Option<PyErr>) + Send>>,
+                throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
             ) -> Self {
                 Self($crate::coroutine::Coroutine::new(future, throw))
             }
 
+            /// Wrap a generic future into a Python coroutine.
             pub fn from_future(future: impl $crate::PyFuture + 'static) -> Self {
                 Self::new(Box::pin(future), None)
             }
@@ -112,17 +122,28 @@ macro_rules! generate {
             }
         }
 
+        /// Python async generator wrapping a [`PyStream`](crate::PyStream).
         #[pyclass]
         pub struct AsyncGenerator($crate::async_generator::AsyncGenerator<Coroutine>);
 
         impl AsyncGenerator {
+            /// Wrap a boxed stream in to a Python async generator.
+            ///
+            /// If `throw` callback is provided:
+            /// - async generator `athrow` method will call it with the passed exception
+            ///   before polling;
+            /// - async generator `aclose` method will call it with `None` before polling and
+            ///   dropping the stream.
+            /// If `throw` callback is not provided, the stream will dropped without additional
+            /// poll.
             pub fn new(
                 stream: ::std::pin::Pin<Box<dyn $crate::PyStream>>,
-                throw: Option<Box<dyn FnMut(Option<PyErr>) + Send>>,
+                throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
             ) -> Self {
                 Self($crate::async_generator::AsyncGenerator::new(stream, throw))
             }
 
+            /// Wrap a generic stream.
             pub fn from_stream(stream: impl $crate::PyStream + 'static) -> Self {
                 Self::new(Box::pin(stream), None)
             }

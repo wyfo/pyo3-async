@@ -1,3 +1,5 @@
+//! `asyncio`/`trio` compatible coroutine and async generator implementation, lazily specialized
+//! using `sniffio`.
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 
 use crate::{asyncio, coroutine, trio, utils};

@@ -1,4 +1,8 @@
-use std::{pin::Pin, sync::Arc, task::Poll};
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 use futures::task::ArcWake;
 use pyo3::{exceptions::PyRuntimeError, iter::IterNextOutput, prelude::*};
@@ -19,14 +23,14 @@ pub(crate) trait CoroutineWaker: Sized {
 
 pub(crate) struct Coroutine<W> {
     future: Option<Pin<Box<dyn PyFuture>>>,
-    throw: Option<Box<dyn FnMut(Option<PyErr>) + Send>>,
+    throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
     waker: Option<Arc<W>>,
 }
 
 impl<W> Coroutine<W> {
     pub(crate) fn new(
         future: Pin<Box<dyn PyFuture>>,
-        throw: Option<Box<dyn FnMut(Option<PyErr>) + Send>>,
+        throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
     ) -> Self {
         Self {
             future: Some(future),
@@ -38,8 +42,11 @@ impl<W> Coroutine<W> {
     pub(crate) fn close(&mut self, py: Python) -> PyResult<()> {
         if let Some(mut future_rs) = self.future.take() {
             if let Some(ref mut throw) = self.throw {
-                throw(None);
-                let res = future_rs.as_mut().poll_py(py, &futures::task::noop_waker());
+                throw(py, None);
+                let waker = futures::task::noop_waker();
+                let res = future_rs
+                    .as_mut()
+                    .poll_py(py, &mut Context::from_waker(&waker));
                 if let Poll::Ready(Err(err)) = res {
                     return Err(err);
                 }
@@ -62,7 +69,7 @@ impl<W: CoroutineWaker + ArcWake + 'static> Coroutine<W> {
         };
         let exc = exc.or_else(|| self.waker.as_ref().and_then(|w| w.raise(py).err()));
         match (exc, &mut self.throw) {
-            (Some(exc), Some(throw)) => throw(Some(exc)),
+            (Some(exc), Some(throw)) => throw(py, Some(exc)),
             (Some(exc), _) => {
                 self.future.take();
                 return Err(exc);
@@ -75,7 +82,9 @@ impl<W: CoroutineWaker + ArcWake + 'static> Coroutine<W> {
             self.waker = Some(Arc::new(W::new(py)?));
         }
         let waker = futures::task::waker(self.waker.clone().unwrap());
-        let res = future_rs.as_mut().poll_py(py, &waker);
+        let res = future_rs
+            .as_mut()
+            .poll_py(py, &mut Context::from_waker(&waker));
         Ok(match res {
             Poll::Ready(res) => {
                 self.future.take();

@@ -2,7 +2,7 @@ use std::{
     marker::PhantomData,
     mem,
     pin::Pin,
-    task::{ready, Poll, Waker},
+    task::{ready, Context, Poll},
 };
 
 use pyo3::{exceptions::PyStopAsyncIteration, prelude::*};
@@ -18,14 +18,14 @@ struct PyStreamNext {
 }
 
 impl PyFuture for PyStreamNext {
-    fn poll_py(self: Pin<&mut Self>, py: Python, waker: &Waker) -> Poll<PyResult<PyObject>> {
+    fn poll_py(self: Pin<&mut Self>, py: Python, cx: &mut Context) -> Poll<PyResult<PyObject>> {
         let err = || Err(PyStopAsyncIteration::new_err(py.None()));
         let this = Pin::into_inner(self);
         let mut ref_mut = this.next.borrow_mut(py);
         let Some(stream) = &mut ref_mut.0 else {
             return Poll::Ready(err());
         };
-        let opt_res = ready!(stream.as_mut().poll_next_py(py, waker));
+        let opt_res = ready!(stream.as_mut().poll_next_py(py, cx));
         if let Some(res) = opt_res {
             if this.close {
                 ref_mut.0 = None;
@@ -66,14 +66,14 @@ pub(crate) trait CoroutineFactory {
 
 pub(crate) struct AsyncGenerator<C> {
     stream_or_next: StreamOrNext,
-    throw: Option<Box<dyn FnMut(Option<PyErr>) + Send>>,
+    throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
     _phantom: PhantomData<C>,
 }
 
 impl<C> AsyncGenerator<C> {
     pub(crate) fn new(
         stream: Pin<Box<dyn PyStream>>,
-        throw: Option<Box<dyn FnMut(Option<PyErr>) + Send>>,
+        throw: Option<Box<dyn FnMut(Python, Option<PyErr>) + Send>>,
     ) -> Self {
         Self {
             stream_or_next: StreamOrNext::Stream(stream),
@@ -97,13 +97,13 @@ impl<C: CoroutineFactory> AsyncGenerator<C> {
         let Some(throw) = &mut self.throw else {
             return Ok(C::coroutine(async move { Err::<(), _>(exc) }).into_py(py));
         };
-        throw(Some(exc));
+        throw(py, Some(exc));
         self._next(py, false)
     }
 
     pub(crate) fn close(&mut self, py: Python) -> PyResult<PyObject> {
         if let Some(throw) = &mut self.throw {
-            throw(None);
+            throw(py, None);
         }
         self._next(py, true)
     }
