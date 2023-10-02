@@ -2,9 +2,7 @@
 
 PyO3 bindings to various Python asynchronous frameworks.
 
-## Disclaimer
-
-This crate is at an early stage of development.
+*Disclaimer: This crate is at an early stage of development.*
 
 ## How it works
 
