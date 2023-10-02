@@ -4,6 +4,10 @@ PyO3 bindings to various Python asynchronous frameworks.
 
 *Disclaimer: This crate is at an early stage of development.*
 
+## Documentation
+
+https://docs.rs/pyo3-async/
+
 ## How it works
 
 Asynchronous implementations are not so different in Rust and Python. Rust uses callbacks (through `std::task::Waker`) to wake up the related executor, while Python `Asyncio.Future` also has a callback registered to wake up the event loop.
