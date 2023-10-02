@@ -2,6 +2,21 @@
 
 PyO3 bindings to various Python asynchronous frameworks.
 
+## Disclaimer
+
+This crate is at an early stage of development.
+
+## How it works
+
+Asynchronous implementations are not so different in Rust and Python. Rust uses callbacks (through `std::task::Waker`) to wake up the related executor, while Python `Asyncio.Future` also has a callback registered to wake up the event loop.
+
+So, why not use Rust callback to wake up Python event loop, and vice versa ? That's all.
+
+## Difference with [PyO3 Asyncio](ashttps://github.com/awestlake87/pyo3-asyncio)
+
+- PyO3 Asyncio requires a running asynchronous runtime on Rust side, while this crate doesn't;
+- PyO3 Asyncio only focus on *asyncio*, while this crate obviously support *asyncio*, but also [*trio*](https://github.com/python-trio/trio) or [*anyio*](https://github.com/agronholm/anyio).
+
 ## Example
 
 You can build this module with [Maturin](https://github.com/PyO3/maturin)
@@ -113,4 +128,3 @@ asyncio.run(asyncio_main())
 print("======================")
 trio.run(trio_run)
 ```
-
