@@ -2,6 +2,24 @@
 name = "pyo3-async"
 version = "0.1.0"
 edition = "2021"
+exclude = [".*"]
+description = "PyO3 bindings to various Python asynchronous frameworks."
+homepage = "https://github.com/wyfo/pyo3-async"
+readme = "README.md"
+keywords = [
+    "pyo3",
+    "python",
+    "cpython",
+    "ffi",
+    "async",
+]
+categories = [
+    "api-bindings",
+    "asynchronous",
+    "development-tools::ffi",
+]
+license = "MIT"
+repository = "https://github.com/wyfo/pyo3-async"
 
 [dependencies]
 futures = "0.3"
