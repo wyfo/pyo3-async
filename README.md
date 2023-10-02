@@ -4,7 +4,21 @@ PyO3 bindings to various Python asynchronous frameworks.
 
 ## Example
 
+You can build this module with [Maturin](https://github.com/PyO3/maturin)
+
 ```rust
+#[pymodule]
+fn example(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(sleep_asyncio, m)?)?;
+    m.add_function(wrap_pyfunction!(sleep_trio, m)?)?;
+    m.add_function(wrap_pyfunction!(sleep_sniffio, m)?)?;
+    m.add_function(wrap_pyfunction!(spawn_future, m)?)?;
+    m.add_function(wrap_pyfunction!(count_asyncio, m)?)?;
+    m.add_function(wrap_pyfunction!(count_trio, m)?)?;
+    m.add_function(wrap_pyfunction!(count_sniffio, m)?)?;
+    Ok(())
+}
+
 fn tokio() -> &'static tokio::runtime::Runtime {
     use std::sync::OnceLock;
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
@@ -63,19 +77,9 @@ fn count_trio(until: i32, tick: u64) -> trio::AsyncGenerator {
 fn count_sniffio(until: i32, tick: u64) -> sniffio::AsyncGenerator {
     sniffio::AsyncGenerator::from_stream(count(until, tick))
 }
-
-#[pymodule]
-fn example(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(sleep_asyncio, m)?)?;
-    m.add_function(wrap_pyfunction!(sleep_trio, m)?)?;
-    m.add_function(wrap_pyfunction!(sleep_sniffio, m)?)?;
-    m.add_function(wrap_pyfunction!(spawn_future, m)?)?;
-    m.add_function(wrap_pyfunction!(count_asyncio, m)?)?;
-    m.add_function(wrap_pyfunction!(count_trio, m)?)?;
-    m.add_function(wrap_pyfunction!(count_sniffio, m)?)?;
-    Ok(())
-}
 ```
+
+and execute this Python code
 
 ```python
 import asyncio
