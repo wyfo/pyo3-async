@@ -35,6 +35,13 @@ impl coroutine::CoroutineWaker for Waker {
         }
     }
 
+    fn wake_threadsafe(&self, py: Python) {
+        match self {
+            Self::Asyncio(w) => w.wake_threadsafe(py),
+            Self::Trio(w) => w.wake_threadsafe(py),
+        }
+    }
+
     fn update(&mut self, py: Python) -> PyResult<()> {
         match self {
             Self::Asyncio(w) => w.update(py),

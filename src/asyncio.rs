@@ -43,6 +43,12 @@ impl coroutine::CoroutineWaker for Waker {
     }
 
     fn wake(&self, py: Python) {
+        self.future
+            .call_method1(py, "set_result", (py.None(),))
+            .expect("error while calling EventLoop.call_soon_threadsafe");
+    }
+
+    fn wake_threadsafe(&self, py: Python) {
         let set_result = self
             .future
             .getattr(py, "set_result")

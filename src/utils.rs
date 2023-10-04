@@ -1,4 +1,16 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use pyo3::{exceptions::PyStopIteration, prelude::*, pyclass::IterNextOutput};
+
+// Don't use `std::thread::current` because of unnecessary Arc clone + drop.
+pub(crate) type ThreadId = usize;
+pub(crate) fn current_thread_id() -> ThreadId {
+    static THREAD_COUNTER: AtomicUsize = AtomicUsize::new(0);
+    thread_local! {
+        pub(crate) static THREAD_ID: ThreadId = THREAD_COUNTER.fetch_add(1, Ordering::Relaxed);
+    }
+    THREAD_ID.with(|id| *id)
+}
 
 pub(crate) struct WithGil<'py, T> {
     pub(crate) inner: T,
@@ -51,14 +63,6 @@ pub(crate) fn poll_result(result: IterNextOutput<PyObject, PyObject>) -> PyResul
 
 macro_rules! generate {
     ($waker:ty) => {
-        impl ::futures::task::ArcWake for $waker {
-            fn wake_by_ref(arc_self: &::std::sync::Arc<Self>) {
-                Python::with_gil(|gil| {
-                    $crate::coroutine::CoroutineWaker::wake(arc_self.as_ref(), gil)
-                })
-            }
-        }
-
         /// Python coroutine wrapping a [`PyFuture`](crate::PyFuture).
         #[pyclass]
         pub struct Coroutine($crate::coroutine::Coroutine<$waker>);
