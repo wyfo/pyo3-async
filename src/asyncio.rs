@@ -2,11 +2,14 @@
 use std::{
     future::Future,
     pin::Pin,
-    task::{Context, Poll},
+    task::{ready, Context, Poll},
 };
 
-use futures::FutureExt;
-use pyo3::{exceptions::PyStopIteration, prelude::*};
+use futures::{FutureExt, Stream, StreamExt};
+use pyo3::{
+    exceptions::{PyStopAsyncIteration, PyStopIteration},
+    prelude::*,
+};
 
 use crate::{coroutine, utils};
 
@@ -115,5 +118,61 @@ impl Future for AwaitableWrapper {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Python::with_gil(|gil| Pin::into_inner(self).as_mut(gil).poll_unpin(cx))
+    }
+}
+
+/// [`Stream`] wrapper for a Python async generator (in `asyncio` context).
+///
+/// The stream should be polled in the thread where the event loop is running.
+pub struct AsyncGeneratorWrapper {
+    async_generator: PyObject,
+    next: Option<AwaitableWrapper>,
+}
+
+impl AsyncGeneratorWrapper {
+    /// Wrap a Python async generator.
+    pub fn new(async_generator: &PyAny) -> Self {
+        Self {
+            async_generator: async_generator.into(),
+            next: None,
+        }
+    }
+
+    /// GIL-bound [`Stream`] reference.
+    pub fn as_mut<'a>(
+        &'a mut self,
+        py: Python<'a>,
+    ) -> impl Stream<Item = PyResult<PyObject>> + Unpin + 'a {
+        utils::WithGil { inner: self, py }
+    }
+}
+
+impl<'a> Stream for utils::WithGil<'_, &'a mut AsyncGeneratorWrapper> {
+    type Item = PyResult<PyObject>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.inner.next.is_none() {
+            let next = self
+                .inner
+                .async_generator
+                .as_ref(self.py)
+                .call_method0("__anext__")?;
+            self.inner.next = Some(AwaitableWrapper::new(next)?);
+        }
+        let res = ready!(self.inner.next.as_mut().unwrap().poll_unpin(cx));
+        self.inner.next = None;
+        Poll::Ready(match res {
+            Ok(obj) => Some(Ok(obj)),
+            Err(err) if err.is_instance_of::<PyStopAsyncIteration>(self.py) => None,
+            Err(err) => Some(Err(err)),
+        })
+    }
+}
+
+impl Stream for AsyncGeneratorWrapper {
+    type Item = PyResult<PyObject>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Python::with_gil(|gil| Pin::into_inner(self).as_mut(gil).poll_next_unpin(cx))
     }
 }
