@@ -5,7 +5,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures::{FutureExt, Stream};
+use futures::{FutureExt, Stream, StreamExt};
 use pyo3::prelude::*;
 
 mod async_generator;
@@ -17,7 +17,8 @@ mod utils;
 
 /// GIL-bound [`Future`].
 ///
-/// Provided with a blanket implementation for [`Future`] which polls inside [`Python::allow_threads`].
+/// Provided with a blanket implementation for [`Future`]. GIL is maintained during polling
+/// operation. To release the GIL, see [`GilUnbound`].
 pub trait PyFuture: Send {
     /// GIL-bound [`Future::poll`].
     fn poll_py(self: Pin<&mut Self>, py: Python, cx: &mut Context) -> Poll<PyResult<PyObject>>;
@@ -31,16 +32,15 @@ where
     PyErr: From<E>,
 {
     fn poll_py(self: Pin<&mut Self>, py: Python, cx: &mut Context) -> Poll<PyResult<PyObject>> {
-        let waker = cx.waker();
-        py.allow_threads(|| Future::poll(self, &mut Context::from_waker(waker)))
-            .map_ok(|ok| ok.into_py(py))
-            .map_err(PyErr::from)
+        let poll = self.poll(cx);
+        poll.map_ok(|ok| ok.into_py(py)).map_err(PyErr::from)
     }
 }
 
 /// GIL-bound [`Stream`].
 ///
-/// Provided with a blanket implementation for [`Stream`] which polls inside [`Python::allow_threads`].
+/// Provided with a blanket implementation for [`Stream`]. GIL is maintained during polling
+/// operation. To release the GIL, see [`GilUnbound`].
 pub trait PyStream: Send {
     /// GIL-bound [`Stream::poll_next`].
     fn poll_next_py(
@@ -62,12 +62,60 @@ where
         py: Python,
         cx: &mut Context,
     ) -> Poll<Option<PyResult<PyObject>>> {
-        let waker = cx.waker();
-        py.allow_threads(|| Stream::poll_next(self, &mut Context::from_waker(waker)))
-            .map_ok(|ok| ok.into_py(py))
-            .map_err(PyErr::from)
+        let poll = self.poll_next(cx);
+        poll.map_ok(|ok| ok.into_py(py)).map_err(PyErr::from)
     }
 }
+
+/// Wrapper for [`Future`]/[`Stream`] that releases GIL while polling in [`PyFuture`]/[`PyStream`].
+///
+/// Can be instantiated with [`UnbindGIL::unbind_gil`].
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct GilUnbound<T>(pub T);
+
+impl<F, T, E> PyFuture for GilUnbound<F>
+where
+    F: Future<Output = Result<T, E>> + Send + Unpin,
+    T: IntoPy<PyObject> + Send,
+    E: Send,
+    PyErr: From<E>,
+{
+    fn poll_py(mut self: Pin<&mut Self>, py: Python, cx: &mut Context) -> Poll<PyResult<PyObject>> {
+        let waker = cx.waker();
+        let poll = py.allow_threads(|| self.0.poll_unpin(&mut Context::from_waker(waker)));
+        poll.map_ok(|ok| ok.into_py(py)).map_err(PyErr::from)
+    }
+}
+
+impl<S, T, E> PyStream for GilUnbound<S>
+where
+    S: Stream<Item = Result<T, E>> + Send + Unpin,
+    T: IntoPy<PyObject> + Send,
+    E: Send,
+    PyErr: From<E>,
+{
+    fn poll_next_py(
+        mut self: Pin<&mut Self>,
+        py: Python,
+        cx: &mut Context,
+    ) -> Poll<Option<PyResult<PyObject>>> {
+        let waker = cx.waker();
+        let poll = py.allow_threads(|| self.0.poll_next_unpin(&mut Context::from_waker(waker)));
+        poll.map_ok(|ok| ok.into_py(py)).map_err(PyErr::from)
+    }
+}
+
+/// Extension trait to unbind GIL while polling [`Future`] or [`Stream`].
+///
+/// It is implemented for every types.
+trait UnbindGil: Sized {
+    fn unbind_gil(self) -> GilUnbound<Self> {
+        GilUnbound(self)
+    }
+}
+
+impl<T> UnbindGil for T {}
 
 /// [`Future`] wrapper for Python future.
 ///
