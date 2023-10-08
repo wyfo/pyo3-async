@@ -5,15 +5,20 @@ use std::{
     task::{Context, Poll},
 };
 
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream};
 use pyo3::prelude::*;
 
 mod async_generator;
 pub mod asyncio;
 mod coroutine;
+#[cfg(feature = "unbind-gil")]
+mod gil;
 pub mod sniffio;
 pub mod trio;
 mod utils;
+
+#[cfg(feature = "unbind-gil")]
+pub use gil::{GilUnbound, UnbindGil};
 
 /// GIL-bound [`Future`].
 ///
@@ -66,56 +71,6 @@ where
         poll.map_ok(|ok| ok.into_py(py)).map_err(PyErr::from)
     }
 }
-
-/// Wrapper for [`Future`]/[`Stream`] that releases GIL while polling in [`PyFuture`]/[`PyStream`].
-///
-/// Can be instantiated with [`UnbindGIL::unbind_gil`].
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct GilUnbound<T>(pub T);
-
-impl<F, T, E> PyFuture for GilUnbound<F>
-where
-    F: Future<Output = Result<T, E>> + Send + Unpin,
-    T: IntoPy<PyObject> + Send,
-    E: Send,
-    PyErr: From<E>,
-{
-    fn poll_py(mut self: Pin<&mut Self>, py: Python, cx: &mut Context) -> Poll<PyResult<PyObject>> {
-        let waker = cx.waker();
-        let poll = py.allow_threads(|| self.0.poll_unpin(&mut Context::from_waker(waker)));
-        poll.map_ok(|ok| ok.into_py(py)).map_err(PyErr::from)
-    }
-}
-
-impl<S, T, E> PyStream for GilUnbound<S>
-where
-    S: Stream<Item = Result<T, E>> + Send + Unpin,
-    T: IntoPy<PyObject> + Send,
-    E: Send,
-    PyErr: From<E>,
-{
-    fn poll_next_py(
-        mut self: Pin<&mut Self>,
-        py: Python,
-        cx: &mut Context,
-    ) -> Poll<Option<PyResult<PyObject>>> {
-        let waker = cx.waker();
-        let poll = py.allow_threads(|| self.0.poll_next_unpin(&mut Context::from_waker(waker)));
-        poll.map_ok(|ok| ok.into_py(py)).map_err(PyErr::from)
-    }
-}
-
-/// Extension trait to unbind GIL while polling [`Future`] or [`Stream`].
-///
-/// It is implemented for every types.
-trait UnbindGil: Sized {
-    fn unbind_gil(self) -> GilUnbound<Self> {
-        GilUnbound(self)
-    }
-}
-
-impl<T> UnbindGil for T {}
 
 /// [`Future`] wrapper for Python future.
 ///

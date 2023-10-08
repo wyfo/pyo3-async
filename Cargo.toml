@@ -21,6 +21,11 @@ categories = [
 license = "MIT"
 repository = "https://github.com/wyfo/pyo3-async"
 
+[features]
+default = ["unbind-gil"]
+unbind-gil = ["dep:pin-project"]
+
 [dependencies]
 futures = "0.3"
+pin-project = {version = "1", optional = true}
 pyo3 = "0.19"
