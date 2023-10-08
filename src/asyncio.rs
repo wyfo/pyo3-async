@@ -127,6 +127,83 @@ impl Future for AwaitableWrapper {
     }
 }
 
+/// [`Future`] wrapper for Python future.
+///
+/// Because its duck-typed, it can work either with [`asyncio.Future`](https://docs.python.org/3/library/asyncio-future.html#asyncio.Future) or [`concurrent.futures.Future`](https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Future).
+#[derive(Debug)]
+pub struct FutureWrapper {
+    future: PyObject,
+    cancel_on_drop: Option<CancelOnDrop>,
+}
+
+/// Cancel-on-drop error handling policy (see [`FutureWrapper::new`]).
+#[derive(Debug, Copy, Clone)]
+pub enum CancelOnDrop {
+    IgnoreError,
+    PanicOnError,
+}
+
+impl FutureWrapper {
+    /// Wrap a Python future.
+    ///
+    /// If `cancel_on_drop` is not `None`, the Python future will be cancelled, and error may be
+    /// handled following the provided policy.
+    pub fn new(future: impl Into<PyObject>, cancel_on_drop: Option<CancelOnDrop>) -> Self {
+        Self {
+            future: future.into(),
+            cancel_on_drop,
+        }
+    }
+
+    /// GIL-bound [`Future`] reference.
+    pub fn as_mut<'a>(
+        &'a mut self,
+        py: Python<'a>,
+    ) -> impl Future<Output = PyResult<PyObject>> + Unpin + 'a {
+        utils::WithGil { inner: self, py }
+    }
+}
+
+impl<'a> Future for utils::WithGil<'_, &'a mut FutureWrapper> {
+    type Output = PyResult<PyObject>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self
+            .inner
+            .future
+            .call_method0(self.py, "done")?
+            .is_true(self.py)?
+        {
+            self.inner.cancel_on_drop = None;
+            return Poll::Ready(self.inner.future.call_method0(self.py, "result"));
+        }
+        let callback = utils::WakeCallback(Some(cx.waker().clone()));
+        self.inner
+            .future
+            .call_method1(self.py, "add_done_callback", (callback,))?;
+        Poll::Pending
+    }
+}
+
+impl Future for FutureWrapper {
+    type Output = PyResult<PyObject>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Python::with_gil(|gil| Pin::into_inner(self).as_mut(gil).poll_unpin(cx))
+    }
+}
+
+impl Drop for FutureWrapper {
+    fn drop(&mut self) {
+        if let Some(cancel) = self.cancel_on_drop {
+            let res = Python::with_gil(|gil| self.future.call_method0(gil, "cancel"));
+            if let (Err(err), CancelOnDrop::PanicOnError) = (res, cancel) {
+                panic!("Cancel error while dropping FutureWrapper: {err:?}");
+            }
+        }
+    }
+}
+
 /// [`Stream`] wrapper for a Python async generator (in `asyncio` context).
 ///
 /// The stream should be polled in the thread where the event loop is running.
