@@ -8,22 +8,22 @@ use std::{
 use futures::Stream;
 use pyo3::prelude::*;
 
+#[cfg(feature = "allow-threads")]
+mod allow_threads;
 mod async_generator;
 pub mod asyncio;
 mod coroutine;
-#[cfg(feature = "unbind-gil")]
-mod gil;
 pub mod sniffio;
 pub mod trio;
 mod utils;
 
-#[cfg(feature = "unbind-gil")]
-pub use gil::{GilUnbound, UnbindGil};
+#[cfg(feature = "allow-threads")]
+pub use allow_threads::{AllowThreads, AllowThreadsExt};
 
 /// GIL-bound [`Future`].
 ///
 /// Provided with a blanket implementation for [`Future`]. GIL is maintained during polling
-/// operation. To release the GIL, see [`GilUnbound`].
+/// operation. To release the GIL, see [`AllowThreads`].
 pub trait PyFuture: Send {
     /// GIL-bound [`Future::poll`].
     fn poll_py(self: Pin<&mut Self>, py: Python, cx: &mut Context) -> Poll<PyResult<PyObject>>;
