@@ -19,6 +19,8 @@ mod utils;
 
 #[cfg(feature = "allow-threads")]
 pub use allow_threads::{AllowThreads, AllowThreadsExt};
+#[cfg(feature = "macros")]
+pub use pyo3_async_macros::{pyfunction, pymethods};
 
 /// GIL-bound [`Future`].
 ///
@@ -45,7 +47,7 @@ where
 /// GIL-bound [`Stream`].
 ///
 /// Provided with a blanket implementation for [`Stream`]. GIL is maintained during polling
-/// operation. To release the GIL, see [`GilUnbound`].
+/// operation. To release the GIL, see [`AllowThreads`].
 pub trait PyStream: Send {
     /// GIL-bound [`Stream::poll_next`].
     fn poll_next_py(

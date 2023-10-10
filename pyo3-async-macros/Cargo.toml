@@ -1,0 +1,15 @@
+[package]
+name = "pyo3-async-macros"
+version = "0.2.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1"
+syn = { version = "2", features = ["full", "extra-traits"] }
+
+[dev-dependencies]
+pyo3 = "0.19"
+pyo3-async = { path = ".." }

@@ -16,8 +16,10 @@ So, why not use Rust callback to wake up Python event loop, and vice versa ? Tha
 
 ## Difference with [PyO3 Asyncio](ashttps://github.com/awestlake87/pyo3-asyncio)
 
-- PyO3 Asyncio requires a running asynchronous runtime on Rust side, while this crate doesn't;
-- PyO3 Asyncio only focus on *asyncio*, while this crate obviously support *asyncio*, but also [*trio*](https://github.com/python-trio/trio) or [*anyio*](https://github.com/agronholm/anyio).
+- PyO3 Asyncio requires a running asynchronous runtime on both Python and Rust side, while this crate doesn't;
+- PyO3 Asyncio only focus on *asyncio*, while this crate obviously support *asyncio*, but also [*trio*](https://github.com/python-trio/trio) or [*anyio*](https://github.com/agronholm/anyio);
+- This crate provides control over the GIL release;
+- This crate provides `#[pyfunction]`/`#[pymethods]` macros.
 
 ## Example
 
@@ -26,13 +28,12 @@ You can build this module with [Maturin](https://github.com/PyO3/maturin)
 ```rust
 #[pymodule]
 fn example(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(sleep_asyncio, m)?)?;
-    m.add_function(wrap_pyfunction!(sleep_trio, m)?)?;
+    m.add_function(wrap_pyfunction!(async_sleep_asyncio, m)?)?;
+    m.add_function(wrap_pyfunction!(async_sleep_trio, m)?)?;
     m.add_function(wrap_pyfunction!(sleep_sniffio, m)?)?;
     m.add_function(wrap_pyfunction!(spawn_future, m)?)?;
     m.add_function(wrap_pyfunction!(count_asyncio, m)?)?;
     m.add_function(wrap_pyfunction!(count_trio, m)?)?;
-    m.add_function(wrap_pyfunction!(count_sniffio, m)?)?;
     Ok(())
 }
 
@@ -42,9 +43,9 @@ fn tokio() -> &'static tokio::runtime::Runtime {
     RT.get_or_init(|| tokio::runtime::Runtime::new().unwrap())
 }
 
-fn sleep(seconds: u64) -> impl Future<Output = PyResult<()>> + Send {
+async fn sleep(seconds: u64) {
     let sleep = async move { tokio::time::sleep(std::time::Duration::from_secs(seconds)).await };
-    tokio().spawn(sleep).map(|_| PyResult::Ok(()))
+    tokio().spawn(sleep).await.unwrap();
 }
 
 fn count(until: i32, tick: u64) -> impl Stream<Item = PyResult<i32>> + Send {
@@ -52,48 +53,53 @@ fn count(until: i32, tick: u64) -> impl Stream<Item = PyResult<i32>> + Send {
         if i == until {
             return None;
         }
-        sleep(tick).await.ok();
+        sleep(tick).await;
         Some((PyResult::Ok(i), i + 1))
     })
 }
 
+// Works with async function
+// It generates an `async_sleep_asyncio` function to be exported (see #[pymodule] above)
 #[pyfunction]
-fn sleep_asyncio(seconds: u64) -> asyncio::Coroutine {
-    asyncio::Coroutine::from_future(sleep(seconds))
+async fn sleep_asyncio(seconds: u64) {
+    sleep(seconds).await;
 }
 
-#[pyfunction]
-fn sleep_trio(seconds: u64) -> trio::Coroutine {
-    trio::Coroutine::from_future(sleep(seconds))
+// Specify Python async backend and GIL release
+#[pyfunction(trio, allow_threads)]
+async fn sleep_trio(seconds: u64) {
+    sleep(seconds).await;
 }
 
+// Coroutine can be manually instantiated
 #[pyfunction]
-fn sleep_sniffio(seconds: u64) -> sniffio::Coroutine {
-    sniffio::Coroutine::from_future(sleep(seconds))
+fn sleep_sniffio(seconds: u64) -> pyo3_async::sniffio::Coroutine {
+    pyo3_async::sniffio::Coroutine::from_future(async move {
+        sleep(seconds).await;
+        PyResult::Ok(())
+    })
 }
 
 #[pyfunction]
 fn spawn_future(fut: PyObject) {
     tokio().spawn(async move {
-        FutureWrapper::new(fut, None).await.unwrap();
+        pyo3_async::asyncio::FutureWrapper::new(fut, None)
+            .await
+            .unwrap();
         println!("task done")
     });
 }
 
 #[pyfunction]
-fn count_asyncio(until: i32, tick: u64) -> asyncio::AsyncGenerator {
-    asyncio::AsyncGenerator::from_stream(count(until, tick))
+fn count_asyncio(until: i32, tick: u64) -> pyo3_async::asyncio::AsyncGenerator {
+    pyo3_async::asyncio::AsyncGenerator::from_stream(count(until, tick))
 }
 
 #[pyfunction]
-fn count_trio(until: i32, tick: u64) -> trio::AsyncGenerator {
-    trio::AsyncGenerator::from_stream(count(until, tick))
+fn count_trio(until: i32, tick: u64) -> pyo3_async::trio::AsyncGenerator {
+    pyo3_async::trio::AsyncGenerator::from_stream(count(until, tick))
 }
 
-#[pyfunction]
-fn count_sniffio(until: i32, tick: u64) -> sniffio::AsyncGenerator {
-    sniffio::AsyncGenerator::from_stream(count(until, tick))
-}
 ```
 
 and execute this Python code
