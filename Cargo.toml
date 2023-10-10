@@ -1,11 +1,21 @@
 [package]
 name = "pyo3-async"
-version = "0.2.0"
+description = "PyO3 bindings to various Python asynchronous frameworks."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+exclude.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[workspace.package]
+version = "0.3.0"
 edition = "2021"
 exclude = [".*"]
-description = "PyO3 bindings to various Python asynchronous frameworks."
 homepage = "https://github.com/wyfo/pyo3-async"
-readme = "README.md"
 keywords = [
     "pyo3",
     "python",
@@ -30,7 +40,7 @@ allow-threads = ["dep:pin-project"]
 futures = "0.3"
 pin-project = { version = "1", optional = true }
 pyo3 = "0.19"
-pyo3-async-macros = { path = "pyo3-async-macros", optional = true }
+pyo3-async-macros = { path = "pyo3-async-macros", version = "=0.3.0", optional = true }
 
 [workspace]
 members = ["pyo3-async-macros"]

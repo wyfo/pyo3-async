@@ -1,7 +1,14 @@
 [package]
 name = "pyo3-async-macros"
-version = "0.2.0"
-edition = "2021"
+description = "Procedural macros implementation for pyo3-async."
+version.workspace = true
+edition.workspace = true
+exclude.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [lib]
 proc-macro = true
