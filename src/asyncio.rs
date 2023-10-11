@@ -207,6 +207,8 @@ impl Drop for FutureWrapper {
 /// [`Stream`] wrapper for a Python async generator (in `asyncio` context).
 ///
 /// The stream should be polled in the thread where the event loop is running.
+///
+/// [`Stream`]: https://docs.rs/futures/latest/futures/stream/trait.Stream.html
 pub struct AsyncGeneratorWrapper {
     async_generator: PyObject,
     next: Option<AwaitableWrapper>,
@@ -222,6 +224,8 @@ impl AsyncGeneratorWrapper {
     }
 
     /// GIL-bound [`Stream`] reference.
+    ///
+    /// [`Stream`]: https://docs.rs/futures/latest/futures/stream/trait.Stream.html
     pub fn as_mut<'a>(
         &'a mut self,
         py: Python<'a>,

@@ -111,7 +111,7 @@ fn build_coroutine(
 ///     println!("{s}");
 /// }
 /// #[::pyo3::pyfunction]
-/// #[pyo3(name = "dumb_add")]
+/// #[pyo3(name = "print")]
 /// pub fn async_print(s: String) -> ::pyo3_async::asyncio::Coroutine {
 ///     ::pyo3_async::asyncio::Coroutine::from_future(::pyo3_async::AllowThreads(
 ///         async move { print(s).await; Ok(()) }

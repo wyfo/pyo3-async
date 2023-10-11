@@ -48,6 +48,8 @@ where
 ///
 /// Provided with a blanket implementation for [`Stream`]. GIL is maintained during polling
 /// operation. To release the GIL, see [`AllowThreads`].
+///
+/// [`Stream`]: https://docs.rs/futures/latest/futures/stream/trait.Stream.html
 pub trait PyStream: Send {
     /// GIL-bound [`Stream::poll_next`].
     fn poll_next_py(

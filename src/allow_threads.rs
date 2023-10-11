@@ -11,6 +11,8 @@ use pin_project::pin_project;
 /// [`PyFuture`](crate::PyFuture)/[`PyStream`](crate::PyStream).
 ///
 /// Can be instantiated with [`AllowThreadsExt::allow_threads`].
+///
+/// [`Stream`]: https://docs.rs/futures/latest/futures/stream/trait.Stream.html
 #[derive(Debug)]
 #[repr(transparent)]
 #[pin_project]
@@ -37,6 +39,8 @@ impl<S: Stream> Stream for AllowThreads<S> {
 /// Extension trait to allow threads while polling [`Future`] or [`Stream`].
 ///
 /// It is implemented for every types.
+///
+/// [`Stream`]: https://docs.rs/futures/latest/futures/stream/trait.Stream.html
 pub trait AllowThreadsExt: Sized {
     fn allow_threads(self) -> AllowThreads<Self> {
         AllowThreads(self)
