@@ -1,5 +1,5 @@
 //! `trio` compatible coroutine and async generator implementation.
-use pyo3::prelude::*;
+use pyo3::{intern, prelude::*};
 
 use crate::{coroutine, utils};
 
@@ -31,8 +31,8 @@ impl coroutine::CoroutineWaker for Waker {
         Trio::get(py)?
             .wait_task_rescheduled
             .call1(py, (Py::new(py, AbortFunc)?,))?
-            .call_method0(py, "__await__")?
-            .call_method0(py, "__next__")
+            .call_method0(py, intern!(py, "__await__"))?
+            .call_method0(py, intern!(py, "__next__"))
     }
 
     fn wake(&self, py: Python) {
@@ -45,7 +45,7 @@ impl coroutine::CoroutineWaker for Waker {
     fn wake_threadsafe(&self, py: Python) {
         let reschedule = &Trio::get(py).unwrap().reschedule;
         self.token
-            .call_method1(py, "run_sync_soon", (reschedule, &self.task))
+            .call_method1(py, intern!(py, "run_sync_soon"), (reschedule, &self.task))
             .expect("unexpected error while scheduling TrioToken.run_sync_soon");
     }
 }
@@ -56,7 +56,7 @@ struct AbortFunc;
 #[pymethods]
 impl AbortFunc {
     fn __call__(&self, py: Python, _arg: PyObject) -> PyResult<PyObject> {
-        Trio::get(py)?.Abort.getattr(py, "SUCCEEDED")
+        Trio::get(py)?.Abort.getattr(py, intern!(py, "SUCCEEDED"))
     }
 }
 

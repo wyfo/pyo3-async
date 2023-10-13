@@ -8,6 +8,7 @@ use std::{
 use futures::{FutureExt, Stream, StreamExt};
 use pyo3::{
     exceptions::{PyStopAsyncIteration, PyStopIteration},
+    intern,
     prelude::*,
 };
 
@@ -28,8 +29,8 @@ impl coroutine::CoroutineWaker for Waker {
     fn new(py: Python) -> PyResult<Self> {
         let future = asyncio_future(py)?;
         let call_soon_threadsafe = future
-            .call_method0(py, "get_loop")?
-            .getattr(py, "call_soon_threadsafe")?;
+            .call_method0(py, intern!(py, "get_loop"))?
+            .getattr(py, intern!(py, "call_soon_threadsafe"))?;
         Ok(Waker {
             call_soon_threadsafe,
             future,
@@ -38,20 +39,20 @@ impl coroutine::CoroutineWaker for Waker {
 
     fn yield_(&self, py: Python) -> PyResult<PyObject> {
         self.future
-            .call_method0(py, "__await__")?
-            .call_method0(py, "__next__")
+            .call_method0(py, intern!(py, "__await__"))?
+            .call_method0(py, intern!(py, "__next__"))
     }
 
     fn wake(&self, py: Python) {
         self.future
-            .call_method1(py, "set_result", (py.None(),))
+            .call_method1(py, intern!(py, "set_result"), (py.None(),))
             .expect("error while calling EventLoop.call_soon_threadsafe");
     }
 
     fn wake_threadsafe(&self, py: Python) {
         let set_result = self
             .future
-            .getattr(py, "set_result")
+            .getattr(py, intern!(py, "set_result"))
             .expect("error while calling Future.set_result");
         self.call_soon_threadsafe
             .call1(py, (set_result, py.None()))
@@ -64,7 +65,7 @@ impl coroutine::CoroutineWaker for Waker {
     }
 
     fn raise(&self, py: Python) -> PyResult<()> {
-        self.future.call_method0(py, "result")?;
+        self.future.call_method0(py, intern!(py, "result"))?;
         Ok(())
     }
 }
@@ -83,7 +84,9 @@ impl AwaitableWrapper {
     /// Wrap a Python awaitable.
     pub fn new(awaitable: &PyAny) -> PyResult<Self> {
         Ok(Self {
-            future_iter: awaitable.call_method0("__await__")?.extract()?,
+            future_iter: awaitable
+                .call_method0(intern!(awaitable.py(), "__await__"))?
+                .extract()?,
             future: None,
         })
     }
@@ -102,18 +105,23 @@ impl<'a> Future for utils::WithGil<'_, &'a mut AwaitableWrapper> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(fut) = self.inner.future.as_ref() {
-            fut.call_method0(self.py, "result")?;
+            fut.call_method0(self.py, intern!(self.py, "result"))?;
         }
-        match self.inner.future_iter.call_method0(self.py, "__next__") {
+        match self
+            .inner
+            .future_iter
+            .call_method0(self.py, intern!(self.py, "__next__"))
+        {
             Ok(future) => {
                 let callback = utils::WakeCallback(Some(cx.waker().clone()));
-                future.call_method1(self.py, "add_done_callback", (callback,))?;
+                future.call_method1(self.py, intern!(self.py, "add_done_callback"), (callback,))?;
                 self.inner.future = Some(future);
                 Poll::Pending
             }
-            Err(err) if err.is_instance_of::<PyStopIteration>(self.py) => {
-                Poll::Ready(Ok(err.value(self.py).getattr("value")?.into()))
-            }
+            Err(err) if err.is_instance_of::<PyStopIteration>(self.py) => Poll::Ready(Ok(err
+                .value(self.py)
+                .getattr(intern!(self.py, "value"))?
+                .into())),
             Err(err) => Poll::Ready(Err(err)),
         }
     }
@@ -171,16 +179,22 @@ impl<'a> Future for utils::WithGil<'_, &'a mut FutureWrapper> {
         if self
             .inner
             .future
-            .call_method0(self.py, "done")?
+            .call_method0(self.py, intern!(self.py, "done"))?
             .is_true(self.py)?
         {
             self.inner.cancel_on_drop = None;
-            return Poll::Ready(self.inner.future.call_method0(self.py, "result"));
+            return Poll::Ready(
+                self.inner
+                    .future
+                    .call_method0(self.py, intern!(self.py, "result")),
+            );
         }
         let callback = utils::WakeCallback(Some(cx.waker().clone()));
-        self.inner
-            .future
-            .call_method1(self.py, "add_done_callback", (callback,))?;
+        self.inner.future.call_method1(
+            self.py,
+            intern!(self.py, "add_done_callback"),
+            (callback,),
+        )?;
         Poll::Pending
     }
 }
@@ -196,7 +210,7 @@ impl Future for FutureWrapper {
 impl Drop for FutureWrapper {
     fn drop(&mut self) {
         if let Some(cancel) = self.cancel_on_drop {
-            let res = Python::with_gil(|gil| self.future.call_method0(gil, "cancel"));
+            let res = Python::with_gil(|gil| self.future.call_method0(gil, intern!(gil, "cancel")));
             if let (Err(err), CancelOnDrop::PanicOnError) = (res, cancel) {
                 panic!("Cancel error while dropping FutureWrapper: {err:?}");
             }
@@ -243,7 +257,7 @@ impl<'a> Stream for utils::WithGil<'_, &'a mut AsyncGeneratorWrapper> {
                 .inner
                 .async_generator
                 .as_ref(self.py)
-                .call_method0("__anext__")?;
+                .call_method0(intern!(self.py, "__anext__"))?;
             self.inner.next = Some(AwaitableWrapper::new(next)?);
         }
         let res = ready!(self.inner.next.as_mut().unwrap().poll_unpin(cx));
