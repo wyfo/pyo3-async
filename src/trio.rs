@@ -30,7 +30,7 @@ impl coroutine::CoroutineWaker for Waker {
     fn yield_(&self, py: Python) -> PyResult<PyObject> {
         Trio::get(py)?
             .wait_task_rescheduled
-            .call1(py, (Py::new(py, AbortFunc)?,))?
+            .call1(py, (wrap_pyfunction!(abort_func, py)?,))?
             .call_method0(py, intern!(py, "__await__"))?
             .call_method0(py, intern!(py, "__next__"))
     }
@@ -50,14 +50,9 @@ impl coroutine::CoroutineWaker for Waker {
     }
 }
 
-#[pyclass]
-struct AbortFunc;
-
-#[pymethods]
-impl AbortFunc {
-    fn __call__(&self, py: Python, _arg: PyObject) -> PyResult<PyObject> {
-        Trio::get(py)?.Abort.getattr(py, intern!(py, "SUCCEEDED"))
-    }
+#[pyfunction]
+fn abort_func(py: Python, _arg: PyObject) -> PyResult<PyObject> {
+    Trio::get(py)?.Abort.getattr(py, intern!(py, "SUCCEEDED"))
 }
 
 utils::generate!(Waker);
