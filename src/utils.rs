@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use pyo3::{exceptions::PyStopIteration, prelude::*, pyclass::IterNextOutput};
+use pyo3::{exceptions::PyStopIteration, prelude::*, pyclass::IterNextOutput, types::PyCFunction};
 
 // Don't use `std::thread::current` because of unnecessary Arc clone + drop.
 pub(crate) type ThreadId = usize;
@@ -17,16 +17,9 @@ pub(crate) struct WithGil<'py, T> {
     pub(crate) py: Python<'py>,
 }
 
-#[pyclass]
-pub(crate) struct WakeCallback(pub(crate) Option<std::task::Waker>);
-
-#[pymethods]
-impl WakeCallback {
-    fn __call__(&mut self, _fut: PyObject) {
-        if let Some(waker) = self.0.take() {
-            waker.wake()
-        }
-    }
+pub(crate) fn wake_callback(py: Python, waker: std::task::Waker) -> PyResult<&PyAny> {
+    let func = PyCFunction::new_closure(py, None, None, move |_, _| waker.wake_by_ref())?;
+    Ok(func)
 }
 
 macro_rules! module {

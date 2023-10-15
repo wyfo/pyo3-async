@@ -113,7 +113,7 @@ impl<'a> Future for utils::WithGil<'_, &'a mut AwaitableWrapper> {
             .call_method0(self.py, intern!(self.py, "__next__"))
         {
             Ok(future) => {
-                let callback = utils::WakeCallback(Some(cx.waker().clone()));
+                let callback = utils::wake_callback(self.py, cx.waker().clone())?;
                 future.call_method1(self.py, intern!(self.py, "add_done_callback"), (callback,))?;
                 self.inner.future = Some(future);
                 Poll::Pending
@@ -189,7 +189,7 @@ impl<'a> Future for utils::WithGil<'_, &'a mut FutureWrapper> {
                     .call_method0(self.py, intern!(self.py, "result")),
             );
         }
-        let callback = utils::WakeCallback(Some(cx.waker().clone()));
+        let callback = utils::wake_callback(self.py, cx.waker().clone())?;
         self.inner.future.call_method1(
             self.py,
             intern!(self.py, "add_done_callback"),
