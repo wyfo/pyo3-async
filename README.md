@@ -2,7 +2,13 @@
 
 PyO3 bindings to various Python asynchronous frameworks.
 
-*Disclaimer: This crate is at an early stage of development.*
+## *This crate is deprecated*
+
+*This crate was an experiment about implementing async support in PyO3.*
+
+*The experiment was successful, because async support is eventually being implemented at this moment, see [the dedicated](https://github.com/PyO3/pyo3/issues/1632).*
+
+*As a consequence, this crate is now deprecated. If you want to try async support before its official release, you should use the branch of the [last PR](https://github.com/PyO3/pyo3/pull/3613), or `master` (where the implementation is still incomplete, but normally stable).*
 
 ## Documentation
 

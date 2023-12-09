@@ -12,7 +12,7 @@ license.workspace = true
 repository.workspace = true
 
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 exclude = [".*"]
 homepage = "https://github.com/wyfo/pyo3-async"
@@ -39,8 +39,11 @@ allow-threads = ["dep:pin-project"]
 [dependencies]
 futures = "0.3"
 pin-project = { version = "1", optional = true }
-pyo3 = "0.18"
-pyo3-async-macros = { path = "pyo3-async-macros", version = "=0.3.1", optional = true }
+pyo3 = ">=0.18,<0.21"
+pyo3-async-macros = { path = "pyo3-async-macros", version = "=0.3.2", optional = true }
 
 [workspace]
 members = ["pyo3-async-macros"]
+
+[badges]
+maintenance = { "status" = "deprecated" }
